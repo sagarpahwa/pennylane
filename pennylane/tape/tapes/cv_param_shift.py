@@ -283,7 +283,7 @@ class CVParamShiftTape(QubitParamShiftTape):
                 "second-order observables; falling back to finite-differences.",
                 UserWarning,
             )
-            return self.numeric_pd(idx, device, params, **options)
+            return self._numeric_shifts(idx, device, params, **options)
 
         t_idx = list(self.trainable_params)[idx]
         op = self._par_info[t_idx]["op"]
@@ -424,7 +424,7 @@ class CVParamShiftTape(QubitParamShiftTape):
                 "second-order observables; falling back to finite-differences.",
                 UserWarning,
             )
-            return self.numeric_pd(idx, device, params, **options)
+            return self._numeric_shifts(idx, device, params, **options)
 
         temp_tape = self.copy()
 

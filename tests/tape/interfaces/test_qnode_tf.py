@@ -205,7 +205,7 @@ class TestQNode:
         if diff_method == "backprop":
             pytest.skip("Test does not support backprop")
 
-        spy = mocker.spy(JacobianTape, "numeric_pd")
+        spy = mocker.spy(JacobianTape, "_numeric_shifts")
 
         a = tf.Variable([0.1, 0.2])
 
@@ -253,7 +253,7 @@ class TestQNode:
         expected = [tf.cos(a), -tf.cos(a) * tf.sin(b)]
         assert np.allclose(res, expected, atol=tol, rtol=0)
 
-        spy = mocker.spy(JacobianTape, "numeric_pd")
+        spy = mocker.spy(JacobianTape, "_numeric_shifts")
 
         jac = tape.jacobian(res, [a, b])
         expected = [
@@ -262,7 +262,7 @@ class TestQNode:
         ]
         assert np.allclose(jac, expected, atol=tol, rtol=0)
 
-        # JacobianTape.numeric_pd has been called for each argument
+        # JacobianTape._numeric_shifts has been called for each argument
         assert len(spy.call_args_list) == 2
 
         # make the second QNode argument a constant
@@ -283,7 +283,7 @@ class TestQNode:
         expected = [-tf.sin(a), tf.sin(a) * tf.sin(b)]
         assert np.allclose(jac, expected, atol=tol, rtol=0)
 
-        # JacobianTape.numeric_pd has been called only once
+        # JacobianTape._numeric_shifts has been called only once
         assert len(spy.call_args_list) == 1
 
     def test_classical_processing(self, dev_name, diff_method, tol):

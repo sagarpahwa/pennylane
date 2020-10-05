@@ -17,6 +17,7 @@ to the ``QuantumTape`` class.
 """
 # pylint: disable=too-many-branches
 
+import copy
 import numpy as np
 
 import pennylane as qml
@@ -209,16 +210,12 @@ class JacobianTape(QuantumTape):
 
         return tuple(allowed_param_methods.values())
 
-    def numeric_pd(self, idx, device, params=None, **options):
-        """Evaluate the gradient of the tape with respect to
-        a single trainable tape parameter using numerical finite-differences.
+    def _numeric_shifts(self, idx, **options):
+        r"""Get shift rules required to compute the partial derivative with respect to the parameter
+        at index 'idx' using numerical finite-differences.
 
         Args:
             idx (int): trainable parameter index to differentiate with respect to
-            device (.Device, .QubitDevice): a PennyLane device
-                that can execute quantum operations and return measurement statistics
-            params (list[Any]): The quantum tape operation parameters. If not provided,
-                the current tape parameter values are used (via :meth:`~.get_parameters`).
 
         Keyword Args:
             h=1e-7 (float): finite difference method step size
@@ -226,35 +223,23 @@ class JacobianTape(QuantumTape):
                 to forward finite differences, ``2`` to centered finite differences.
 
         Returns:
-            array[float]: 1-dimensional array of length determined by the tape output
-            measurement statistics
+            list[dict]: list of shift rules for this parameter
         """
-        if params is None:
-            params = np.array(self.get_parameters())
 
         order = options.get("order", 1)
         h = options.get("h", 1e-7)
 
-        shift = np.zeros_like(params, dtype=np.float64)
-        shift[idx] = h
-
         if order == 1:
-            # Forward finite-difference.
-            # Check if the device has already be pre-computed with
-            # unshifted parameter values, to avoid redundant evaluations.
-            y0 = options.get("y0", None)
-
-            if y0 is None:
-                y0 = np.asarray(self.execute_device(params, device))
-
-            y = np.asarray(self.execute_device(params + shift, device))
-            return (y - y0) / h
+            # forward finite-difference.
+            shift1 = {"idx": idx, "value": 0, "coeff": h/2}
+            shift2 = {"idx": idx, "value": h, "coeff": h/2}
+            return [shift1, shift2]
 
         if order == 2:
             # central finite difference
-            shift_forward = np.array(self.execute_device(params + shift / 2, device))
-            shift_backward = np.array(self.execute_device(params - shift / 2, device))
-            return (shift_forward - shift_backward) / h
+            shift1 = {"idx": idx, "value": + h / 2, "coeff": h/2}
+            shift2 = {"idx": idx, "value": - h / 2, "coeff": -h/2}
+            return [shift1, shift2]
 
         raise ValueError("Order must be 1 or 2.")
 
@@ -285,20 +270,15 @@ class JacobianTape(QuantumTape):
         self.set_parameters(saved_parameters)
         return jac
 
-    def analytic_pd(self, idx, device, params=None, **options):
-        """Evaluate the gradient of the tape with respect to
-        a single trainable tape parameter using an analytic method.
+    def _analytic_shifts(self, idx, **options):
+        r"""Get shift rules required to compute the partial derivative with respect to the parameter
+        at index 'idx' using analytic parameter shift methods.
 
         Args:
             idx (int): trainable parameter index to differentiate with respect to
-            device (.Device, .QubitDevice): a PennyLane device
-                that can execute quantum operations and return measurement statistics
-            params (list[Any]): The quantum tape operation parameters. If not provided,
-                the current tape parameter values are used (via :meth:`~.get_parameters`).
 
         Returns:
-            array[float]: 1-dimensional array of length determined by the tape output
-                measurement statistics
+            list[dict]: list of shift rules for this parameter
         """
         raise NotImplementedError
 
@@ -441,30 +421,48 @@ class JacobianTape(QuantumTape):
         jac = None
         p_ind = range(len(params))
 
-        # loop through each parameter and compute the gradient
+        # loop through each parameter and compute the shift rules for its partial derivative
+        shift_rules = np.zeros((len(params),))
         for idx, (l, param_method) in enumerate(zip(p_ind, allowed_param_methods)):
 
             if param_method == "0":
+                # TODO: what do we do here?
                 # Independent parameter. Skip, as this parameter has a gradient of 0.
-                continue
+                shift_rules[idx] = None
 
             if (method == "best" and param_method[0] == "F") or (method == "numeric"):
                 # finite difference method
-                g = self.numeric_pd(l, device, params=params, **options)
+                shift_rules[idx] = self._numeric_shifts(l, **options)
 
             elif (method == "best" and param_method[0] == "A") or (method == "analytic"):
                 # analytic method
-                g = self.analytic_pd(l, device, params=params, **options)
+                shift_rules[idx] = self._analytic_shifts(l, **options)
+
+        if jac is None:
+            # The Jacobian matrix has not yet been created, as we needed at least
+            # one device execution to occur so that we could ensure that the output
+            # dimension is known.
+            jac = np.zeros((self.output_dim, len(params)), dtype=float)
+
+        # execute shift rules to collect partial derivatives
+        for idx, shifts in enumerate(shift_rules):
+
+            if shift is None:
+                # leave column 'idx' in the jacobian as zeroes
+                # since the output is independent of this parameter
+                continue
+
+            # compute gradient using shift rules
+            g = np.zeros((self.output_dim,), dtype=float)
+            for shift in shifts:
+                shifted_params = copy.copy(params)
+                shifted_params[idx] += shift['value']
+                shifted_y = np.array(self.execute_device(shifted_params, device))
+                g += shift['coeff'] * shifted_y
 
             if g.dtype is np.dtype("object"):
                 # object arrays cannot be flattened; must hstack them
                 g = np.hstack(g)
-
-            if jac is None:
-                # The Jacobian matrix has not yet been created, as we needed at least
-                # one device execution to occur so that we could ensure that the output
-                # dimension is known.
-                jac = np.zeros((self.output_dim, len(params)), dtype=float)
 
             jac[:, idx] = g.flatten()
 

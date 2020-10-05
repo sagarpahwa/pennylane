@@ -189,7 +189,7 @@ class TestQNode:
         if diff_method == "backprop":
             pytest.skip("Test does not support backprop")
 
-        spy = mocker.spy(JacobianTape, "numeric_pd")
+        spy = mocker.spy(JacobianTape, "_numeric_shifts")
 
         a = np.array([0.1, 0.2], requires_grad=True)
 
@@ -255,7 +255,7 @@ class TestQNode:
         expected = [-np.sin(a) + np.sin(a) * np.sin(b)]
         assert np.allclose(res, expected, atol=tol, rtol=0)
 
-        # JacobianTape.numeric_pd has been called only once
+        # JacobianTape._numeric_shifts has been called only once
         assert len(spy.call_args_list) == 1
 
         # trainability also updates on evaluation

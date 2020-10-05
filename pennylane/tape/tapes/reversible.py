@@ -126,7 +126,7 @@ class ReversibleTape(JacobianTape):
         self._state = None
         return super().jacobian(device, params, **options)
 
-    def analytic_pd(self, idx, device, params=None, **options):
+    def _analytic_shifts(self, idx, device, params=None, **options):
         t_idx = list(self.trainable_params)[idx]
         op = self._par_info[t_idx]["op"]
         p_idx = self._par_info[t_idx]["p_idx"]

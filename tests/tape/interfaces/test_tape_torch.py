@@ -125,7 +125,7 @@ class TestTorchQuantumTape:
 
     def test_jacobian_options(self, mocker, tol):
         """Test setting jacobian options"""
-        spy = mocker.spy(JacobianTape, "numeric_pd")
+        spy = mocker.spy(JacobianTape, "_numeric_shifts")
 
         a = torch.tensor([0.1, 0.2], requires_grad=True)
 

@@ -314,7 +314,7 @@ class TestParameterShiftLogic:
         spy1 = mocker.spy(tape, "parameter_shift_first_order")
         spy2 = mocker.spy(tape, "parameter_shift_second_order")
         spy_transform = mocker.spy(qml.operation.CVOperation, "heisenberg_tr")
-        spy_numeric = mocker.spy(tape, "numeric_pd")
+        spy_numeric = mocker.spy(tape, "_numeric_shifts")
 
         with pytest.warns(UserWarning, match="does not support the PolyXP observable"):
             tape.jacobian(dev, method="analytic")
@@ -341,7 +341,7 @@ class TestParameterShiftLogic:
 
         spy1 = mocker.spy(tape, "parameter_shift_first_order")
         spy2 = mocker.spy(tape, "parameter_shift_second_order")
-        spy_numeric = mocker.spy(tape, "numeric_pd")
+        spy_numeric = mocker.spy(tape, "_numeric_shifts")
 
         with pytest.warns(UserWarning, match="does not support the PolyXP observable"):
             tape.jacobian(dev, method="analytic")

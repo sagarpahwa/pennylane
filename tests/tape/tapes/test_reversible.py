@@ -206,8 +206,8 @@ class TestGradients:
 
         dev = qml.device("default.qubit", wires=1)
 
-        spy_numeric = mocker.spy(tape, "numeric_pd")
-        spy_analytic = mocker.spy(tape, "analytic_pd")
+        spy_numeric = mocker.spy(tape, "_numeric_shifts")
+        spy_analytic = mocker.spy(tape, "_analytic_shifts")
 
         # gradients
         exact = np.cos(par)
@@ -316,7 +316,7 @@ class TestGradients:
 
         grad_F = tape.jacobian(dev, method="numeric")
 
-        spy = mocker.spy(ReversibleTape, "analytic_pd")
+        spy = mocker.spy(ReversibleTape, "_analytic_shifts")
         spy_execute = mocker.spy(tape, "execute_device")
         grad_A = tape.jacobian(dev, method="analytic")
         spy.assert_called()
@@ -374,7 +374,7 @@ class TestQNodeIntegration:
             return qml.expval(qml.PauliX(0) @ qml.PauliZ(1))
 
         qnode1 = QNode(circuit, dev, diff_method="reversible")
-        spy = mocker.spy(ReversibleTape, "analytic_pd")
+        spy = mocker.spy(ReversibleTape, "_analytic_shifts")
 
         grad_fn = qml.grad(qnode1)
         grad_A = grad_fn(*args)
@@ -449,8 +449,8 @@ class TestQNodeIntegration:
             qml.Rot(params[1], params[0], 2 * params[0], wires=[0])
             return qml.expval(qml.PauliX(0))
 
-        spy_numeric = mocker.spy(JacobianTape, "numeric_pd")
-        spy_analytic = mocker.spy(ReversibleTape, "analytic_pd")
+        spy_numeric = mocker.spy(JacobianTape, "_numeric_shifts")
+        spy_analytic = mocker.spy(ReversibleTape, "_analytic_shifts")
 
         cost = QNode(circuit, dev, diff_method="finite-diff")
         grad_fn = qml.grad(cost)

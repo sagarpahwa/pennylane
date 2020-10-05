@@ -179,7 +179,7 @@ class TestQNode:
 
     def test_jacobian_options(self, mocker, tol):
         """Test setting jacobian options"""
-        spy = mocker.spy(JacobianTape, "numeric_pd")
+        spy = mocker.spy(JacobianTape, "_numeric_shifts")
 
         a = torch.tensor([0.1, 0.2], requires_grad=True)
 
@@ -224,7 +224,7 @@ class TestQNode:
         expected = [np.cos(a_val), -np.cos(a_val) * np.sin(b_val)]
         assert np.allclose(res.detach().numpy(), expected, atol=tol, rtol=0)
 
-        spy = mocker.spy(JacobianTape, "numeric_pd")
+        spy = mocker.spy(JacobianTape, "_numeric_shifts")
 
         loss = torch.sum(res)
         loss.backward()
@@ -232,7 +232,7 @@ class TestQNode:
         expected = [-np.sin(a_val) + np.sin(a_val) * np.sin(b_val), -np.cos(a_val) * np.cos(b_val)]
         assert np.allclose([a.grad, b.grad], expected, atol=tol, rtol=0)
 
-        # JacobianTape.numeric_pd has been called for each argument
+        # JacobianTape._numeric_shifts has been called for each argument
         assert len(spy.call_args_list) == 2
 
         # make the second QNode argument a constant
@@ -256,7 +256,7 @@ class TestQNode:
         expected = -np.sin(a_val) + np.sin(a_val) * np.sin(b_val)
         assert np.allclose(a.grad, expected, atol=tol, rtol=0)
 
-        # JacobianTape.numeric_pd has been called only once
+        # JacobianTape._numeric_shifts has been called only once
         assert len(spy.call_args_list) == 1
 
     def test_classical_processing(self, tol):

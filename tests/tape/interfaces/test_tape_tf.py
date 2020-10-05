@@ -148,7 +148,7 @@ class TestTFQuantumTape:
 
     def test_jacobian_options(self, mocker, tol):
         """Test setting jacobian options"""
-        spy = mocker.spy(JacobianTape, "numeric_pd")
+        spy = mocker.spy(JacobianTape, "_numeric_shifts")
 
         a = tf.Variable([0.1, 0.2])
 

@@ -148,7 +148,7 @@ class TestJacobian:
 
     def test_analytic_method(self, mocker):
         """Test that calling the Jacobian with method=analytic correctly
-        calls the analytic_pd method"""
+        calls the _analytic_shifts method"""
         mock = mocker.patch("pennylane.tape.JacobianTape._grad_method")
         mock.return_value = "A"
 
@@ -158,11 +158,11 @@ class TestJacobian:
             qml.expval(qml.PauliY(0))
 
         dev = qml.device("default.qubit", wires=1)
-        tape.analytic_pd = mocker.Mock()
-        tape.analytic_pd.return_value = np.array([1.0])
+        tape._analytic_shifts = mocker.Mock()
+        tape._analytic_shifts.return_value = np.array([1.0])
 
         tape.jacobian(dev, method="analytic")
-        assert len(tape.analytic_pd.call_args_list) == 2
+        assert len(tape._analytic_shifts.call_args_list) == 2
 
     def test_device_method(self, mocker):
         """Test that calling the Jacobian with method=device correctly
@@ -250,8 +250,8 @@ class TestJacobian:
     def test_independent_parameter(self, mocker):
         """Test that an independent parameter is skipped
         during the Jacobian computation."""
-        numeric_spy = mocker.spy(JacobianTape, "numeric_pd")
-        analytic_spy = mocker.spy(JacobianTape, "analytic_pd")
+        numeric_spy = mocker.spy(JacobianTape, "_numeric_shifts")
+        analytic_spy = mocker.spy(JacobianTape, "_analytic_shifts")
 
         with JacobianTape() as tape:
             qml.RX(0.543, wires=[0])
@@ -274,8 +274,8 @@ class TestJacobian:
     def test_no_trainable_parameters(self, mocker):
         """Test that if the tape has no trainable parameters, no
         subroutines are called and the returned Jacobian is empty"""
-        numeric_spy = mocker.spy(JacobianTape, "numeric_pd")
-        analytic_spy = mocker.spy(JacobianTape, "analytic_pd")
+        numeric_spy = mocker.spy(JacobianTape, "_numeric_shifts")
+        analytic_spy = mocker.spy(JacobianTape, "_analytic_shifts")
 
         with JacobianTape() as tape:
             qml.RX(0.543, wires=[0])
@@ -297,7 +297,7 @@ class TestJacobian:
         the tape is executed only once using the current parameter
         values."""
         execute_spy = mocker.spy(JacobianTape, "execute_device")
-        numeric_spy = mocker.spy(JacobianTape, "numeric_pd")
+        numeric_spy = mocker.spy(JacobianTape, "_numeric_shifts")
 
         with JacobianTape() as tape:
             qml.RX(0.543, wires=[0])
@@ -340,7 +340,7 @@ class TestJacobian:
         assert tape.get_parameters() == [0.5, 0.6]
 
     def test_numeric_pd_no_y0(self, mocker, tol):
-        """Test that, if y0 is not passed when calling the numeric_pd method,
+        """Test that, if y0 is not passed when calling the _numeric_shifts method,
         y0 is calculated."""
         execute_spy = mocker.spy(JacobianTape, "execute_device")
 
@@ -354,13 +354,13 @@ class TestJacobian:
             qml.expval(qml.PauliZ(0) @ qml.PauliX(1))
 
         # compute numeric gradient of parameter 0, without passing y0
-        res1 = tape.numeric_pd(0, dev)
+        res1 = tape._numeric_shifts(0, dev)
         assert len(execute_spy.call_args_list) == 2
 
         # compute y0 in advance
         y0 = tape.execute(dev)
         execute_spy.call_args_list = []
-        res2 = tape.numeric_pd(0, dev, y0=y0)
+        res2 = tape._numeric_shifts(0, dev, y0=y0)
         assert len(execute_spy.call_args_list) == 1
         assert np.allclose(res1, res2, atol=tol, rtol=0)
 
