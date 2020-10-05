@@ -354,13 +354,13 @@ class TestJacobian:
             qml.expval(qml.PauliZ(0) @ qml.PauliX(1))
 
         # compute numeric gradient of parameter 0, without passing y0
-        res1 = tape._numeric_shifts(0, dev)
+        res1 = tape._numeric_shifts(0)
         assert len(execute_spy.call_args_list) == 2
 
         # compute y0 in advance
         y0 = tape.execute(dev)
         execute_spy.call_args_list = []
-        res2 = tape._numeric_shifts(0, dev, y0=y0)
+        res2 = tape._numeric_shifts(0, y0=y0)
         assert len(execute_spy.call_args_list) == 1
         assert np.allclose(res1, res2, atol=tol, rtol=0)
 

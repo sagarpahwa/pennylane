@@ -231,15 +231,15 @@ class JacobianTape(QuantumTape):
 
         if order == 1:
             # forward finite-difference.
-            shift1 = {"idx": idx, "value": 0, "coeff": h/2}
-            shift2 = {"idx": idx, "value": h, "coeff": h/2}
+            shift1 = {"idx": idx, "value": 0., "coeff": h/2}
+            shift2 = {"idx": idx, "value": h, "coeff": -h/2}
             return [shift1, shift2]
 
         if order == 2:
             # central finite difference
-            shift1 = {"idx": idx, "value": + h / 2, "coeff": h/2}
-            shift2 = {"idx": idx, "value": - h / 2, "coeff": -h/2}
-            return [shift1, shift2]
+            shift_forward = {"idx": idx, "value": + h / 2, "coeff": h/2}
+            shift_backward = {"idx": idx, "value": - h / 2, "coeff": -h/2}
+            return [shift_forward, shift_backward]
 
         raise ValueError("Order must be 1 or 2.")
 
@@ -416,53 +416,56 @@ class JacobianTape(QuantumTape):
                 # First order (forward) finite-difference will be performed.
                 # Compute the value of the tape at the current parameters here. This ensures
                 # this computation is only performed once, for all parameters.
-                options["y0"] = np.asarray(self.execute_device(params, device))
+                options['y0'] = np.asarray(self.execute_device(params, device))
 
         jac = None
         p_ind = range(len(params))
 
         # loop through each parameter and compute the shift rules for its partial derivative
-        shift_rules = np.zeros((len(params),))
+        shift_rules = []
         for idx, (l, param_method) in enumerate(zip(p_ind, allowed_param_methods)):
 
             if param_method == "0":
-                # TODO: what do we do here?
-                # Independent parameter. Skip, as this parameter has a gradient of 0.
-                shift_rules[idx] = None
+                # Independent parameter. Set rule to None since this parameter has a gradient of 0.
+                shift_rules.append(None)
 
             if (method == "best" and param_method[0] == "F") or (method == "numeric"):
                 # finite difference method
-                shift_rules[idx] = self._numeric_shifts(l, **options)
+                shift_rules.append(self._numeric_shifts(l, **options))
 
             elif (method == "best" and param_method[0] == "A") or (method == "analytic"):
                 # analytic method
-                shift_rules[idx] = self._analytic_shifts(l, **options)
-
-        if jac is None:
-            # The Jacobian matrix has not yet been created, as we needed at least
-            # one device execution to occur so that we could ensure that the output
-            # dimension is known.
-            jac = np.zeros((self.output_dim, len(params)), dtype=float)
+                shift_rules.append(self._analytic_shifts(l, **options))
 
         # execute shift rules to collect partial derivatives
         for idx, shifts in enumerate(shift_rules):
 
-            if shift is None:
+            if shifts is None:
                 # leave column 'idx' in the jacobian as zeroes
                 # since the output is independent of this parameter
                 continue
 
             # compute gradient using shift rules
-            g = np.zeros((self.output_dim,), dtype=float)
+            g = 0.0
             for shift in shifts:
-                shifted_params = copy.copy(params)
-                shifted_params[idx] += shift['value']
-                shifted_y = np.array(self.execute_device(shifted_params, device))
+
+                if shift['value'] == 0:
+                    shifted_y = options['y0']
+                else:
+                    shifted_params = copy.copy(params)
+                    shifted_params[idx] += shift['value']
+                    shifted_y = np.array(self.execute_device(shifted_params, device))
                 g += shift['coeff'] * shifted_y
 
             if g.dtype is np.dtype("object"):
                 # object arrays cannot be flattened; must hstack them
                 g = np.hstack(g)
+
+            if jac is None:
+                # The Jacobian matrix has not yet been created, as we needed at least
+                # one device execution to occur so that we could ensure that the output
+                # dimension is known.
+                jac = np.zeros((self.output_dim, len(params)), dtype=float)
 
             jac[:, idx] = g.flatten()
 
