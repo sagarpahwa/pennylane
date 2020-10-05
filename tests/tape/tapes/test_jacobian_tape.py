@@ -159,7 +159,7 @@ class TestJacobian:
 
         dev = qml.device("default.qubit", wires=1)
         tape._analytic_shifts = mocker.Mock()
-        tape._analytic_shifts.return_value = np.array([1.0])
+        tape._analytic_shifts.return_value = [{'idx':0, 'value':0.1, 'coeff':0.1}]
 
         tape.jacobian(dev, method="analytic")
         assert len(tape._analytic_shifts.call_args_list) == 2
@@ -221,7 +221,7 @@ class TestJacobian:
         assert tape.output_dim == sum([2, 2])
         assert res.shape == (4, 3)
 
-    def test_incorrect_ragged_output_dim(self, mocker):
+    def test_incorrect_ragged_output_dim(self):
         """Test that a quantum tape with an incorrect inferred *ragged* output dimension
         corrects itself after evaluation."""
         dev = qml.device("default.qubit", wires=3)
@@ -269,7 +269,7 @@ class TestJacobian:
         assert len(analytic_spy.call_args_list) == 0
 
         # the numeric pd method is only called for parameter 0
-        assert numeric_spy.call_args[0] == (tape, 0, dev)
+        assert numeric_spy.call_args[0] == (tape, 0)
 
     def test_no_trainable_parameters(self, mocker):
         """Test that if the tape has no trainable parameters, no
@@ -338,31 +338,6 @@ class TestJacobian:
         assert np.allclose(res2, res3, atol=tol, rtol=0)
         assert not np.allclose(res1, res2, atol=tol, rtol=0)
         assert tape.get_parameters() == [0.5, 0.6]
-
-    def test_numeric_pd_no_y0(self, mocker, tol):
-        """Test that, if y0 is not passed when calling the _numeric_shifts method,
-        y0 is calculated."""
-        execute_spy = mocker.spy(JacobianTape, "execute_device")
-
-        dev = qml.device("default.qubit", wires=2)
-        params = [0.1, 0.2]
-
-        with JacobianTape() as tape:
-            qml.RX(params[0], wires=[0])
-            qml.RY(params[1], wires=[1])
-            qml.CNOT(wires=[0, 1])
-            qml.expval(qml.PauliZ(0) @ qml.PauliX(1))
-
-        # compute numeric gradient of parameter 0, without passing y0
-        res1 = tape._numeric_shifts(0)
-        assert len(execute_spy.call_args_list) == 2
-
-        # compute y0 in advance
-        y0 = tape.execute(dev)
-        execute_spy.call_args_list = []
-        res2 = tape._numeric_shifts(0, y0=y0)
-        assert len(execute_spy.call_args_list) == 1
-        assert np.allclose(res1, res2, atol=tol, rtol=0)
 
     def test_numeric_unknown_order(self):
         """Test that an exception is raised if the finite-difference

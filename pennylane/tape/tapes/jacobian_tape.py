@@ -231,14 +231,14 @@ class JacobianTape(QuantumTape):
 
         if order == 1:
             # forward finite-difference.
-            shift1 = {"idx": idx, "value": 0., "coeff": h/2}
-            shift2 = {"idx": idx, "value": h, "coeff": -h/2}
+            shift1 = {"idx": idx, "value": h, "coeff": h}
+            shift2 = {"idx": idx, "value": 0., "coeff": -h}
             return [shift1, shift2]
 
         if order == 2:
             # central finite difference
-            shift_forward = {"idx": idx, "value": + h / 2, "coeff": h/2}
-            shift_backward = {"idx": idx, "value": - h / 2, "coeff": -h/2}
+            shift_forward = {"idx": idx, "value": + h / 2, "coeff": h}
+            shift_backward = {"idx": idx, "value": - h / 2, "coeff": -h}
             return [shift_forward, shift_backward]
 
         raise ValueError("Order must be 1 or 2.")
@@ -424,6 +424,7 @@ class JacobianTape(QuantumTape):
         # loop through each parameter and compute the shift rules for its partial derivative
         shift_rules = []
         for idx, (l, param_method) in enumerate(zip(p_ind, allowed_param_methods)):
+            print(idx, l)
 
             if param_method == "0":
                 # Independent parameter. Set rule to None since this parameter has a gradient of 0.
@@ -452,10 +453,12 @@ class JacobianTape(QuantumTape):
                 if shift['value'] == 0:
                     shifted_y = options['y0']
                 else:
-                    shifted_params = copy.copy(params)
-                    shifted_params[idx] += shift['value']
+                    shifted_params = np.zeros_like(params, dtype=np.float64)
+                    shifted_params[shift['idx']] = shift['value']
+                    shifted_params += params
+
                     shifted_y = np.array(self.execute_device(shifted_params, device))
-                g += shift['coeff'] * shifted_y
+                g += shifted_y / shift['coeff']
 
             if g.dtype is np.dtype("object"):
                 # object arrays cannot be flattened; must hstack them
